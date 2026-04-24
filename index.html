@@ -1,0 +1,412 @@
+<meta charset="UTF-8">    
+<meta name="viewport" content="width=device-width, initial-scale=1.0">    
+  
+<style>    
+.generator-box *{ box-sizing:border-box; }    
+  
+.generator-box{    
+  width:100%;    
+  max-width:900px;    
+  margin:20px auto;    
+  padding:15px;    
+  border-radius:12px;    
+  box-shadow:0 5px 20px rgba(0,0,0,0.08);    
+  background:rgba(255,255,255,0.95);    
+}    
+  
+.generator-box input,    
+.generator-box select,    
+.generator-box textarea{    
+  width:100%;    
+  padding:10px;    
+  margin:8px 0;    
+  border-radius:8px;    
+  border:1px solid #ddd;    
+}    
+  
+.generator-box button{    
+  width:100%;    
+  padding:10px;    
+  margin:5px 0;    
+  border:none;    
+  border-radius:6px;    
+  background:linear-gradient(45deg,#6161e4,#28b463);    
+  color:#fff;    
+  font-weight:bold;    
+  cursor:pointer;    
+}    
+  
+.copy-btn{ background:#222 !important; }    
+.add-btn{ background:#444 !important; }    
+.remove-btn{ background:#4682B4 !important; margin-top:6px; }    
+  
+.btn-row{    
+  display:flex;    
+  gap:10px;    
+  margin-top:10px;    
+}    
+  
+.btn-row button{    
+  flex:1;    
+  width:auto !important;    
+  margin:5px 0;    
+}    
+  
+.field-group{    
+  background:#f7f7f7;    
+  padding:10px;    
+  margin-bottom:10px;    
+  border-radius:8px;    
+}    
+  
+.upload-row{    
+  display:flex;    
+  align-items:center;    
+  gap:10px;    
+}    
+  
+.upload-row input{ flex:1; }    
+  
+.status{    
+  font-size:18px;    
+  min-width:30px;    
+  text-align:center;    
+  flex-shrink:0;    
+}    
+  
+.generator-box textarea{    
+  min-height:80px;    
+  max-height:500px;    
+  resize:none;    
+  overflow:hidden;    
+}    
+  
+@media (max-width:480px){    
+  .generator-box{ padding:10px; margin:10px auto; }    
+  .btn-row{ flex-direction:row; }    
+}    
+  
+@media (max-width:768px){    
+  .generator-box{ max-width:95%; }    
+}    
+  
+body{    
+  background: linear-gradient(135deg,#eef2f3,#dfe9f3) !important;    
+}    
+  
+#outer-wrapper,    
+.main-wrapper{    
+  background: transparent !important;    
+}    
+</style>    
+  
+<div class="generator-box">    
+  
+<h2 style="text-align:center;color:#ff0000;">Add Products From</h2>    
+  
+<label>Product Image <span style="font-size:12px; color:red;">(Max file size: 1 MB)</span></label>    
+  
+<div class="field-group">    
+<div class="upload-row">    
+<input type="file" onchange="uploadImage(this,'main')">    
+<span class="status"></span>    
+</div>    
+</div>    
+  
+<div id="imageFields"></div>    
+<button class="add-btn" onclick="addImage()">✚ Add Image</button>    
+  
+<input type="text" id="title" placeholder="Product Title">    
+  
+<div id="dynamicFields"></div>    
+<button class="add-btn" onclick="addField()">✚ Add Field</button>    
+  
+<input type="text" id="pdf" placeholder="PDF File ID">    
+<input type="text" id="price" placeholder="Price">    
+  
+<label>Discount</label>    
+<div id="discountContainer">    
+<input type="text" id="discount" placeholder="Example: 20">    
+</div>    
+  
+<label>Stock</label>    
+<select id="stock" onchange="handleStockChange()">    
+<option value="instock">In Stock</option>    
+<option value="stockout">Stock Out</option>    
+</select>    
+  
+<br>    
+  
+<div class="btn-row">    
+<button onclick="generateHTML()">Generate HTML</button>    
+<button class="copy-btn" onclick="copyHTML()" id="copyBtn">📋 Copy</button>    
+<button onclick="loadFromHTML()">Load</button>    
+</div>    
+  
+<textarea id="output" placeholder="Generated HTML..."></textarea>    
+  
+<div id="seoBox" style="display:none; margin-top:20px;">    
+<h3>🔗 SEO Settings</h3>    
+  
+<label>Permalink</label>    
+<input type="text" id="permalink">    
+  
+<label>Search Description</label>    
+<textarea id="metaDesc"></textarea>    
+</div>    
+  
+</div>    
+  
+<script>  
+  
+const apiKey="a5b3fb9ec65e94a6cd657d8dab7e8253";  
+let imageUrls={main:"",list:[]};  
+  
+function decodeHTML(html){  
+let txt=document.createElement("textarea");  
+txt.innerHTML=html;  
+return txt.value;  
+}  
+  
+// ✅ Upload Image  
+async function uploadImage(input,type){  
+let file=input.files[0];  
+  
+if(file.size > 1 * 1024 * 1024){  
+alert("Image must be under 1MB");  
+input.value="";  
+return;  
+}  
+  
+let status=input.parentElement.querySelector(".status");  
+if(!file) return;  
+  
+status.innerHTML="⏳";  
+  
+let fd=new FormData();  
+fd.append("image",file);  
+  
+try{  
+let res=await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`,{  
+method:"POST",  
+body:fd  
+});  
+let data=await res.json();  
+  
+if(data.success){  
+let url=data.data.url;  
+status.innerHTML="✅";  
+  
+if(type==="main") imageUrls.main=url;  
+else imageUrls.list.push(url);  
+  
+}else status.innerHTML="❌";  
+  
+}catch{  
+status.innerHTML="❌";  
+}  
+}  
+  
+// ✅ Add Image Field  
+function addImage(){  
+let c=document.getElementById("imageFields");  
+let d=document.createElement("div");  
+d.className="field-group";  
+  
+d.innerHTML=`  
+<div class="upload-row">  
+<input type="file" onchange="uploadImage(this,'multi')">  
+<span class="status"></span>  
+</div>  
+<button class="remove-btn" onclick="this.parentElement.remove()">Remove</button>`;  
+  
+c.appendChild(d);  
+}  
+  
+// ✅ Add Dynamic Field  
+function addField(){  
+let c=document.getElementById("dynamicFields");  
+let d=document.createElement("div");  
+d.className="field-group";  
+  
+d.innerHTML=`  
+<input type="text" class="field-label" placeholder="Label">  
+<input type="text" class="field-value" placeholder="Value">  
+<button class="remove-btn" onclick="this.parentElement.remove()">Remove</button>`;  
+  
+c.appendChild(d);  
+}  
+  
+// STOCK    
+function handleStockChange(){    
+let stock=document.getElementById("stock").value;    
+let c=document.getElementById("discountContainer");    
+    
+if(stock==="stockout"){    
+c.innerHTML=`<select id="discount"><option>Stock Out!</option></select>`;    
+}else{    
+c.innerHTML=`<input type="text" id="discount" placeholder="Example: 20">`;    
+}    
+}  
+  
+// ✅ Generate HTML  
+async function generateHTML(){  
+  
+let title=document.getElementById("title").value.trim();  
+let pdf=document.getElementById("pdf").value.trim();  
+let price=document.getElementById("price").value.trim();  
+let discount=document.getElementById("discount").value.trim();  
+let stock=document.getElementById("stock").value;  
+  
+let html="";  
+  
+// Images  
+if(imageUrls.main){  
+html+=`<img src="${imageUrls.main}" style="width:100%;border-radius:10px;">\n\n`;  
+}  
+  
+imageUrls.list.forEach(u=>{  
+html+=`<img src="${u}" style="width:100%;border-radius:10px;">\n\n`;  
+});  
+  
+// Product Table  
+if(title){  
+html+=`<table class="custom-table"><tbody>  
+<tr><th>PRODUCT DESCRIPTION</th></tr>  
+<tr><td>${title}</td></tr>`;  
+  
+let l=document.querySelectorAll(".field-label");  
+let v=document.querySelectorAll(".field-value");  
+  
+for(let i=0;i<l.length;i++){  
+if(l[i].value && v[i].value){  
+html+=`<tr><td>${l[i].value}: ${v[i].value}</td></tr>`;  
+}  
+}  
+  
+html+=`</tbody></table>\n\n`;  
+}  
+  
+// Other Details  
+html+=`<div style="height:40px;"></div>`;  
+html+=`<table class="custom-table"><tbody>  
+<tr><th>Other Details</th></tr>  
+<tr><td>🚚 Delivery within 3-5 Days</td></tr>  
+<tr><td>💰 Cash on Delivery</td></tr>  
+<tr><td>📦 Full Box</td></tr>  
+</tbody></table>\n\n`;  
+  
+// PDF  
+if(pdf){  
+html+=`<div class="post-pdf-link" data-pdf="https://drive.google.com/file/d/${pdf}/preview"></div>\n`;  
+}  
+  
+// Price + Discount  
+if(price) html+=`<strike>regular/${price}</strike>\n`;  
+if(discount && discount!=="Stock Out!"){  
+html+=`<strike>discount/${discount}</strike>\n`;  
+}  
+  
+    
+// STOCK CSS    
+html+=`<style>    
+.instock{display:${stock==="instock"?"block":"none"}!important;}    
+.stockout{display:${stock==="stockout"?"block":"none"}!important;}    
+</style>`;    
+    
+document.getElementById("output").value=html;    
+    
+  
+// SEO  
+let desc = title + " সেরা দামে কিনুন। ক্যাশ অন ডেলিভারি সহ সারা বাংলাদেশে ডেলিভারি।";  
+metaDesc.value = decodeHTML(desc);  
+  
+if(title){  
+let engTitle = await translateToEnglish(title);  
+  
+let slug = engTitle.toLowerCase()  
+.replace(/[^a-z0-9\s-]/g,'')  
+.replace(/\s+/g,'-')  
+.replace(/-+/g,'-')  
+.replace(/^-+|-+$/g,'');  
+  
+permalink.value = slug;  
+}  
+  
+seoBox.style.display="block";  
+}  
+  
+// ✅ COPY  
+function copyHTML(){  
+navigator.clipboard.writeText(output.value);  
+copyBtn.innerText="Copied!";  
+setTimeout(()=>copyBtn.innerText="📋 Copy",2000);  
+}  
+  
+// ✅ LOAD FULL FIX  
+function loadFromHTML(){  
+  
+let html = output.value;  
+if(!html){ alert("No HTML Found!"); return; }  
+  
+// Reset  
+document.getElementById("dynamicFields").innerHTML="";  
+document.getElementById("imageFields").innerHTML="";  
+imageUrls={main:"",list:[]};  
+  
+// Title + Fields  
+let allTd=[...html.matchAll(/<td>(.*?)<\/td>/g)];  
+  
+if(allTd.length>0){  
+document.getElementById("title").value=decodeHTML(allTd[0][1]);  
+}  
+  
+for(let i=1;i<allTd.length;i++){  
+let txt=decodeHTML(allTd[i][1]);  
+  
+if(txt.includes(":")){  
+let parts=txt.split(":");  
+  
+addField();  
+  
+let last=document.querySelectorAll("#dynamicFields .field-group");  
+last=last[last.length-1];  
+  
+last.querySelector(".field-label").value=parts[0].trim();  
+last.querySelector(".field-value").value=parts.slice(1).join(":").trim();  
+}  
+}  
+  
+// Images  
+let imgs=[...html.matchAll(/<img src="(.*?)"/g)];  
+  
+if(imgs.length>0){  
+imageUrls.main=imgs[0][1];  
+}  
+  
+for(let i=1;i<imgs.length;i++){  
+addImage();  
+imageUrls.list.push(imgs[i][1]);  
+}  
+  
+// Price  
+let p=html.match(/regular\/(.*?)<\/strike>/);  
+if(p) document.getElementById("price").value=p[1];  
+  
+// Discount  
+let d=html.match(/discount\/(.*?)<\/strike>/);  
+if(d) document.getElementById("discount").value=d[1];  
+  
+alert("Loaded Successfully ✅");  
+}  
+  
+// Translate  
+async function translateToEnglish(text){  
+let url="https://translate.googleapis.com/translate_a/single?client=gtx&sl=bn&tl=en&dt=t&q="+encodeURIComponent(text);  
+let res=await fetch(url);  
+let data=await res.json();  
+return data[0].map(x=>x[0]).join("");  
+}  
+    
+</script>  
+  
