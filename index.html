@@ -269,23 +269,34 @@ imageUrls.list.forEach(u=>{
 html+=`<img src="${u}" style="width:100%;border-radius:10px;">\n\n`;  
 });  
   
-// Product Table  
-if(title){  
-html+=`<table class="custom-table"><tbody>  
-<tr><th>PRODUCT DESCRIPTION</th></tr>  
-<tr><td>${title}</td></tr>`;  
-  
-let l=document.querySelectorAll(".field-label");  
-let v=document.querySelectorAll(".field-value");  
-  
-for(let i=0;i<l.length;i++){  
-if(l[i].value && v[i].value){  
-html+=`<tr><td>${l[i].value}: ${v[i].value}</td></tr>`;  
-}  
-}  
-  
-html+=`</tbody></table>\n\n`;  
-}  
+// Product Table
+if(title){
+html += `<table class="custom-table">
+<tbody>
+<tr>
+<th colspan="2">PRODUCT DESCRIPTION</th>
+</tr>
+<tr>
+<td class="label">নাম</td>
+<td class="value">${title}</td>
+</tr>`;
+
+let l=document.querySelectorAll(".field-label");
+let v=document.querySelectorAll(".field-value");
+for(let i=0;i<l.length;i++){
+if(l[i].value && v[i].value){
+html += `
+<tr>
+<td class="label">${l[i].value}</td>
+<td class="value">${v[i].value}</td>
+</tr>`;
+}
+}
+html += `
+</tbody>
+</table>
+`;
+}
   
 // Other Details  
 html+=`<div style="height:40px;"></div>`;  
