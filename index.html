@@ -371,7 +371,7 @@ setTimeout(()=>document.getElementById("copyBtn").innerText="📋 Copy",2000);
 }  
 
 // =============================================
-// ✅ LOAD FUNCTION - সব কিছু লোড হবে
+// ✅ LOAD FUNCTION - সম্পূর্ণ ঠিক করা হয়েছে
 // =============================================
 function loadFromHTML() {
     let html = document.getElementById("output").value;
@@ -511,7 +511,7 @@ function loadFromHTML() {
 }
 
 // =============================================
-// 📌 টেবিল ডেটা এক্সট্রাক্ট - বিবরণসহ সব কিছু
+// 📌 উন্নত টেবিল ডেটা এক্সট্রাক্ট - এখন বিবরণও লোড হবে!
 // =============================================
 function extractAllTableData(html) {
     let data = [];
@@ -530,82 +530,112 @@ function extractAllTableData(html) {
         return data;
     }
     
-    // 🔹 Try 2: Old format - টেবিল থেকে ডেটা বের করা
-    console.log("🔍 Trying old format...");
+    // 🔹 Try 2: Old format - প্রতিটি TD আলাদাভাবে পার্স করা
+    console.log("🔍 Trying old format with improved parsing...");
     
     let tableMatch = html.match(/<table[^>]*>[\s\S]*?PRODUCT DESCRIPTION[\s\S]*?<\/table>/i);
     if (tableMatch) {
         let tableContent = tableMatch[0];
+        
+        // সমস্ত TD বের করা
         let tdMatches = [...tableContent.matchAll(/<td[^>]*>(.*?)<\/td>/gs)];
         console.log("📝 TD elements found:", tdMatches.length);
         
-        let descriptionValue = "";
+        let descriptionText = "";
         let hasDescription = false;
         
         for (let i = 0; i < tdMatches.length; i++) {
             let content = decodeHTML(tdMatches[i][1].trim());
             
+            // হেডার স্কিপ
             if (content.includes("PRODUCT DESCRIPTION")) continue;
-            if (content.includes("গুরুত্বপূর্ণ") || content.includes("সতর্ক")) continue;
             
-            // চেক করুন "বিবরণ" আছে কিনা
-            let isDescription = content.includes("বিবরণ") || content.includes("বিবরণঃ") || content.includes("বিবরণ:");
+            // খালি কন্টেন্ট স্কিপ
+            if (!content) continue;
             
-            // কোলন (:) বা বাংলা কোলন (ঃ) দিয়ে ভাগ করা
+            // ⭐ বিবরণ চিহ্নিত করা
+            let isDescription = content.includes("বিবরণ") || 
+                               content.includes("বিবরণঃ") || 
+                               content.includes("বিবরণ:") ||
+                               content.includes("বর্ণনা") ||
+                               content.includes("বর্ণনাঃ");
+            
+            // কোলন (:) বা বাংলা কোলন (ঃ) দিয়ে ভাগ করার চেষ্টা
             let colonIndex = content.search(/[:ঃ]/);
-            if (colonIndex > 0) {
+            
+            if (isDescription) {
+                // বিবরণ বিশেষ হ্যান্ডলিং
+                if (colonIndex > 0) {
+                    let value = content.substring(colonIndex + 1).trim();
+                    if (value) {
+                        descriptionText = value;
+                        hasDescription = true;
+                        console.log(`  ✅ Description found: "${value}"`);
+                    }
+                } else {
+                    // "বিবরণ" শব্দটি বাদ দিয়ে বাকি অংশ নেওয়া
+                    let value = content.replace(/বিবরণ/g, "").replace(/বর্ণনা/g, "").trim();
+                    if (value) {
+                        descriptionText = value;
+                        hasDescription = true;
+                        console.log(`  ✅ Description (cleaned): "${value}"`);
+                    }
+                }
+            }
+            else if (colonIndex > 0) {
+                // সাধারণ ফিল্ড (Label: Value)
                 let label = content.substring(0, colonIndex).trim();
                 let value = content.substring(colonIndex + 1).trim();
-                
-                if (label.includes("বিবরণ")) {
-                    descriptionValue = value;
-                    hasDescription = true;
-                    console.log(`  ✅ Description found: "${value}"`);
-                } else if (label && value) {
+                if (label && value) {
                     data.push({ label, value });
                     console.log(`  ✅ "${label}" → "${value}"`);
                 }
             }
-            // যদি কোলন না থাকে, কিন্তু "বিবরণ" শব্দ থাকে
-            else if (content.includes("বিবরণ")) {
-                let parts = content.split(/[ঃ:]/);
-                if (parts.length > 1) {
-                    descriptionValue = parts.slice(1).join(":").trim();
+            else {
+                // কোলন নেই, কিন্তু বিবরণ হতে পারে
+                if (content.length > 20) { // লম্বা টেক্সট = বিবরণ
+                    descriptionText = content;
                     hasDescription = true;
-                } else {
-                    descriptionValue = content.replace(/বিবরণ/g, "").trim();
-                    hasDescription = true;
-                }
-                console.log(`  ✅ Description (no colon): "${descriptionValue}"`);
-            }
-            // যদি কোনো কোলন না থাকে
-            else if (content) {
-                if (data.length > 0 && data[data.length-1].label.includes("বিবরণ")) {
-                    data[data.length-1].value += " " + content;
-                } else {
-                    data.push({ label: "বিবরণ", value: content });
+                    console.log(`  ✅ Long text as description: "${content.substring(0,50)}..."`);
                 }
             }
         }
         
-        if (hasDescription && descriptionValue) {
-            data.push({ label: "বিবরণ", value: descriptionValue });
+        // বিবরণ যোগ করা
+        if (hasDescription && descriptionText) {
+            // চেক করুন বিবরণ ইতিমধ্যে আছে কিনা
+            let hasExistingDescription = data.some(item => item.label.includes("বিবরণ"));
+            if (!hasExistingDescription) {
+                data.push({ label: "বিবরণ", value: descriptionText });
+            }
         }
     }
     
-    // 🔹 যদি কোনো ডেটা না পাওয়া যায়
+    // 🔹 Try 3: যদি কোনো ডেটা না পাওয়া যায়, টেক্সট এক্সট্রাক্ট
     if (data.length === 0) {
-        console.log("⚠️ No structured data found, trying text extraction...");
+        console.log("⚠️ No structured data, trying fallback extraction...");
+        
+        // সব টেক্সট বের করা
         let textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-        let lines = textContent.split(/[।\n\r]/);
-        for (let line of lines) {
-            let colonIndex = line.search(/[:ঃ]/);
+        
+        // কোলন দিয়ে লাইন খোঁজা
+        let parts = textContent.split(/[।\n\r]/);
+        for (let part of parts) {
+            let colonIndex = part.search(/[:ঃ]/);
             if (colonIndex > 0) {
-                let label = line.substring(0, colonIndex).trim();
-                let value = line.substring(colonIndex + 1).trim();
-                if (label && value && !label.includes("PRODUCT")) {
+                let label = part.substring(0, colonIndex).trim();
+                let value = part.substring(colonIndex + 1).trim();
+                if (label && value && !label.includes("PRODUCT") && !label.includes("Other")) {
                     data.push({ label, value });
                 }
+            }
+        }
+        
+        // এখনও বিবরণ না পেলে
+        if (!data.some(item => item.label.includes("বিবরণ"))) {
+            let descMatch = textContent.match(/বিবরণ[:ঃ]\s*([^।]*)/);
+            if (descMatch) {
+                data.push({ label: "বিবরণ", value: descMatch[1].trim() });
             }
         }
     }
