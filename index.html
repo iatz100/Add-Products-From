@@ -116,7 +116,14 @@ body{
 <div id="imageFields"></div>    
 <button class="add-btn" onclick="addImage()">✚ Add Image</button>    
   
-<input type="text" id="title" placeholder="Product Title">    
+<!-- Product Title - Fixed two input boxes (no add button) -->
+<label>Product Title</label>
+<div id="titleFields">
+  <div class="field-group">
+    <input type="text" class="title-label" placeholder="Label Name" value="বইয়ের নাম">
+    <input type="text" class="title-value" placeholder="Product Name">
+  </div>
+</div>
   
 <div id="dynamicFields"></div>    
 <button class="add-btn" onclick="addField()">✚ Add Field</button>    
@@ -222,7 +229,7 @@ d.innerHTML=`
   
 c.appendChild(d);  
 }  
-  
+
 // ✅ Add Dynamic Field  
 function addField(){  
 let c=document.getElementById("dynamicFields");  
@@ -252,7 +259,11 @@ c.innerHTML=`<input type="text" id="discount" placeholder="Example: 20">`;
 // ✅ Generate HTML  
 async function generateHTML(){  
   
-let title=document.getElementById("title").value.trim();  
+// Get title from the fixed title fields
+let titleLabels = document.querySelectorAll(".title-label");
+let titleValues = document.querySelectorAll(".title-value");
+let title = titleValues.length > 0 ? titleValues[0].value.trim() : "";
+
 let pdf=document.getElementById("pdf").value.trim();  
 let price=document.getElementById("price").value.trim();  
 let discount=document.getElementById("discount").value.trim();  
@@ -270,17 +281,25 @@ html+=`<img src="${u}" style="width:100%;border-radius:10px;">\n\n`;
 });  
   
 // Product Table
-if(title){
+if(titleLabels.length > 0 || document.querySelectorAll(".field-label").length > 0){
 html += `<table class="custom-table">
 <tbody>
 <tr>
 <th colspan="2">PRODUCT DESCRIPTION</th>
-</tr>
-<tr>
-<td class="label">নাম</td>
-<td class="value">${title}</td>
 </tr>`;
 
+// Add title fields
+for(let i=0;i<titleLabels.length;i++){
+if(titleLabels[i].value && titleValues[i].value){
+html += `
+<tr>
+<td class="label">${titleLabels[i].value}</td>
+<td class="value">${titleValues[i].value}</td>
+</tr>`;
+}
+}
+
+// Add dynamic fields
 let l=document.querySelectorAll(".field-label");
 let v=document.querySelectorAll(".field-value");
 for(let i=0;i<l.length;i++){
@@ -354,61 +373,143 @@ copyBtn.innerText="Copied!";
 setTimeout(()=>copyBtn.innerText="📋 Copy",2000);  
 }  
   
-// ✅ LOAD FULL FIX  
-function loadFromHTML(){  
-  
-let html = output.value;  
-if(!html){ alert("No HTML Found!"); return; }  
-  
-// Reset  
-document.getElementById("dynamicFields").innerHTML="";  
-document.getElementById("imageFields").innerHTML="";  
-imageUrls={main:"",list:[]};  
-  
-// Title + Fields  
-let allTd=[...html.matchAll(/<td>(.*?)<\/td>/g)];  
-  
-if(allTd.length>0){  
-document.getElementById("title").value=decodeHTML(allTd[0][1]);  
-}  
-  
-for(let i=1;i<allTd.length;i++){  
-let txt=decodeHTML(allTd[i][1]);  
-  
-if(txt.includes(":")){  
-let parts=txt.split(":");  
-  
-addField();  
-  
-let last=document.querySelectorAll("#dynamicFields .field-group");  
-last=last[last.length-1];  
-  
-last.querySelector(".field-label").value=parts[0].trim();  
-last.querySelector(".field-value").value=parts.slice(1).join(":").trim();  
-}  
-}  
-  
-// Images  
-let imgs=[...html.matchAll(/<img src="(.*?)"/g)];  
-  
-if(imgs.length>0){  
-imageUrls.main=imgs[0][1];  
-}  
-  
-for(let i=1;i<imgs.length;i++){  
-addImage();  
-imageUrls.list.push(imgs[i][1]);  
-}  
-  
-// Price  
-let p=html.match(/regular\/(.*?)<\/strike>/);  
-if(p) document.getElementById("price").value=p[1];  
-  
-// Discount  
-let d=html.match(/discount\/(.*?)<\/strike>/);  
-if(d) document.getElementById("discount").value=d[1];  
-  
-alert("Loaded Successfully ✅");  
+function loadFromHTML() {
+    let html = output.value;
+    if (!html) { alert("No HTML Found!"); return; }
+
+    // Reset all fields
+    document.getElementById("dynamicFields").innerHTML = "";
+    document.getElementById("imageFields").innerHTML = "";
+    document.getElementById("titleFields").innerHTML = "";
+    imageUrls = { main: "", list: [] };
+    document.getElementById("price").value = "";
+    document.getElementById("discount").value = "";
+    document.getElementById("pdf").value = "";
+    document.getElementById("metaDesc").value = "";
+    document.getElementById("permalink").value = "";
+
+    // Restore the fixed title fields
+    document.getElementById("titleFields").innerHTML = `
+      <div class="field-group">
+        <input type="text" class="title-label" placeholder="Label (e.g., নাম)" value="নাম">
+        <input type="text" class="title-value" placeholder="Value (e.g., Product Name)">
+      </div>
+    `;
+
+    // Reset discount container to default
+    let container = document.getElementById("discountContainer");
+    container.innerHTML = `<input type="text" id="discount" placeholder="Example: 20">`;
+
+    // 1. Extract Title fields from the table
+    let labelMatches = [...html.matchAll(/<td class="label">(.*?)<\/td>\s*<td class="value">(.*?)<\/td>/g)];
+    
+    if (labelMatches.length > 0) {  
+        let label = decodeHTML(labelMatches[0][1]);  
+        let value = decodeHTML(labelMatches[0][2]);  
+
+        let titleLabel = document.querySelector(".title-label");
+        let titleValue = document.querySelector(".title-value");
+        
+        if (titleLabel) titleLabel.value = label;
+        if (titleValue) titleValue.value = value;
+    }  
+
+    // 2. Extract Dynamic Fields (remaining table rows after first)
+    for (let i = 1; i < labelMatches.length; i++) {  
+        let label = decodeHTML(labelMatches[i][1]);  
+        let value = decodeHTML(labelMatches[i][2]);  
+
+        addField();  
+
+        let lastGroup = document.querySelectorAll("#dynamicFields .field-group");  
+        lastGroup = lastGroup[lastGroup.length - 1];  
+
+        lastGroup.querySelector(".field-label").value = label;  
+        lastGroup.querySelector(".field-value").value = value;  
+    }  
+
+    // 3. Extract Images  
+    let imgs = [...html.matchAll(/<img src="(.*?)"/g)];  
+    if (imgs.length > 0) {  
+        imageUrls.main = imgs[0][1];  
+        for (let i = 1; i < imgs.length; i++) {  
+            addImage();  
+            imageUrls.list.push(imgs[i][1]);  
+            
+            let allImageGroups = document.querySelectorAll("#imageFields .field-group");  
+            let lastImageGroup = allImageGroups[allImageGroups.length - 1];  
+            let statusSpan = lastImageGroup.querySelector(".status");  
+            if (statusSpan) {  
+                statusSpan.innerHTML = "✅";  
+            }  
+        }  
+    }  
+
+    // 4. Extract Price  
+    let priceMatch = html.match(/regular\/(.*?)<\/strike>/);  
+    if (priceMatch) {  
+        document.getElementById("price").value = decodeHTML(priceMatch[1]);  
+    }  
+
+    // 5. Extract Discount - BEFORE stock status change
+    let discountValue = "";
+    let discountMatch = html.match(/discount\/(.*?)<\/strike>/);  
+    if (discountMatch) {  
+        discountValue = decodeHTML(discountMatch[1]);  
+    }
+
+    // 6. Extract PDF ID  
+    let pdfMatch = html.match(/data-pdf="https:\/\/drive.google.com\/file\/d\/(.*?)\/preview"/);  
+    if (pdfMatch) {  
+        document.getElementById("pdf").value = pdfMatch[1];  
+    }  
+
+    // 7. Extract Stock Status - MODIFIED
+    if (html.includes('instock{display:block')) {  
+        document.getElementById("stock").value = "instock";
+        // Ensure discount field is INPUT and set value
+        let container = document.getElementById("discountContainer");
+        container.innerHTML = `<input type="text" id="discount" placeholder="Example: 20">`;
+        if (discountValue) {
+            document.getElementById("discount").value = discountValue;
+        }
+    } else if (html.includes('stockout{display:block')) {  
+        document.getElementById("stock").value = "stockout";
+        // Stock out - show select with Stock Out!
+        let container = document.getElementById("discountContainer");
+        container.innerHTML = `<select id="discount"><option>Stock Out!</option></select>`;
+        // No discount value needed for stock out
+    } else {
+        // Default - in stock
+        document.getElementById("stock").value = "instock";
+        let container = document.getElementById("discountContainer");
+        container.innerHTML = `<input type="text" id="discount" placeholder="Example: 20">`;
+        if (discountValue) {
+            document.getElementById("discount").value = discountValue;
+        }
+    }
+
+    // 8. Regenerate SEO Meta
+    let titleValue = document.querySelector(".title-value");
+    let title = titleValue ? titleValue.value.trim() : "";
+    
+    if (title) {  
+        let desc = title + " সেরা দামে কিনুন। ক্যাশ অন ডেলিভারি সহ সারা বাংলাদেশে ডেলিভারি।";  
+        document.getElementById("metaDesc").value = decodeHTML(desc);  
+        
+        translateToEnglish(title).then(engTitle => {  
+            let slug = engTitle.toLowerCase()  
+                .replace(/[^a-z0-9\s-]/g, '')  
+                .replace(/\s+/g, '-')  
+                .replace(/-+/g, '-')  
+                .replace(/^-+|-+$/g, '');  
+            document.getElementById("permalink").value = slug;  
+        });  
+    }  
+
+    document.getElementById("seoBox").style.display = "block";  
+
+    alert("Loaded Successfully ✅");
 }  
   
 // Translate  
@@ -419,5 +520,4 @@ let data=await res.json();
 return data[0].map(x=>x[0]).join("");  
 }  
     
-</script>  
-  
+</script>
